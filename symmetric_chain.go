@@ -1,5 +1,10 @@
 package encrypt
 
+import (
+	"crypto/aes"
+	"crypto/des"
+)
+
 // 以下是链式调用方法实现
 
 // ECB 设置ECB模式
@@ -10,25 +15,57 @@ func (a *AESEncryptor) ECB() ISymmetric {
 
 // CBC 设置CBC模式
 func (a *AESEncryptor) CBC() ISymmetric {
+	// 创建块加密模式
 	a.blockMode = NewCBCMode(a.iv)
+	
+	// 创建加密块以获取块大小
+	block, err := aes.NewCipher(a.key)
+	if err == nil {
+		// 初始化块模式，自动生成IV如果需要
+		a.blockMode, _ = InitBlockMode(a.blockMode, block)
+	}
 	return a
 }
 
 // CFB 设置CFB模式
 func (a *AESEncryptor) CFB() ISymmetric {
+	// 创建块加密模式
 	a.blockMode = NewCFBMode(a.iv)
+	
+	// 创建加密块以获取块大小
+	block, err := aes.NewCipher(a.key)
+	if err == nil {
+		// 初始化块模式，自动生成IV如果需要
+		a.blockMode, _ = InitBlockMode(a.blockMode, block)
+	}
 	return a
 }
 
 // OFB 设置OFB模式
 func (a *AESEncryptor) OFB() ISymmetric {
+	// 创建块加密模式
 	a.blockMode = NewOFBMode(a.iv)
+	
+	// 创建加密块以获取块大小
+	block, err := aes.NewCipher(a.key)
+	if err == nil {
+		// 初始化块模式，自动生成IV如果需要
+		a.blockMode, _ = InitBlockMode(a.blockMode, block)
+	}
 	return a
 }
 
 // CTR 设置CTR模式
 func (a *AESEncryptor) CTR() ISymmetric {
+	// 创建块加密模式
 	a.blockMode = NewCTRMode(a.iv)
+	
+	// 创建加密块以获取块大小
+	block, err := aes.NewCipher(a.key)
+	if err == nil {
+		// 初始化块模式，自动生成IV如果需要
+		a.blockMode, _ = InitBlockMode(a.blockMode, block)
+	}
 	return a
 }
 
@@ -132,25 +169,57 @@ func (d *DESEncryptor) ECB() ISymmetric {
 
 // CBC 设置CBC模式
 func (d *DESEncryptor) CBC() ISymmetric {
+	// 创建块加密模式
 	d.blockMode = NewCBCMode(d.iv)
+	
+	// 创建加密块以获取块大小
+	block, err := des.NewCipher(d.key)
+	if err == nil {
+		// 初始化块模式，自动生成IV如果需要
+		d.blockMode, _ = InitBlockMode(d.blockMode, block)
+	}
 	return d
 }
 
 // CFB 设置CFB模式
 func (d *DESEncryptor) CFB() ISymmetric {
+	// 创建块加密模式
 	d.blockMode = NewCFBMode(d.iv)
+	
+	// 创建加密块以获取块大小
+	block, err := des.NewCipher(d.key)
+	if err == nil {
+		// 初始化块模式，自动生成IV如果需要
+		d.blockMode, _ = InitBlockMode(d.blockMode, block)
+	}
 	return d
 }
 
 // OFB 设置OFB模式
 func (d *DESEncryptor) OFB() ISymmetric {
+	// 创建块加密模式
 	d.blockMode = NewOFBMode(d.iv)
+	
+	// 创建加密块以获取块大小
+	block, err := des.NewCipher(d.key)
+	if err == nil {
+		// 初始化块模式，自动生成IV如果需要
+		d.blockMode, _ = InitBlockMode(d.blockMode, block)
+	}
 	return d
 }
 
 // CTR 设置CTR模式
 func (d *DESEncryptor) CTR() ISymmetric {
+	// 创建块加密模式
 	d.blockMode = NewCTRMode(d.iv)
+	
+	// 创建加密块以获取块大小
+	block, err := des.NewCipher(d.key)
+	if err == nil {
+		// 初始化块模式，自动生成IV如果需要
+		d.blockMode, _ = InitBlockMode(d.blockMode, block)
+	}
 	return d
 }
 

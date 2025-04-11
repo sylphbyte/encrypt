@@ -80,6 +80,9 @@ type ISymmetric interface {
 	// 核心操作
 	Encrypt(plaintext []byte) ([]byte, error)
 	Decrypt(ciphertext []byte) ([]byte, error)
+	
+	// Release 释放加密器资源到对象池
+	Release()
 }
 
 // IAsymmetric 非对称加密接口
@@ -107,4 +110,7 @@ type IAsymmetric interface {
 	Decrypt(ciphertext []byte) ([]byte, error)
 	Sign(data []byte) ([]byte, error)
 	Verify(data []byte, signature []byte) (bool, error)
+	
+	// Release 释放加密器资源到对象池
+	Release()
 }

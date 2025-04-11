@@ -16,9 +16,13 @@ func NewAES(key []byte) (ISymmetric, error) {
 		return nil, errors.New("AES密钥长度必须是16、24或32字节")
 	}
 	
-	// 创建加密器
-	encryptor := &AESEncryptor{}
-	encryptor.key = make([]byte, len(key))
+	// 从对象池获取实例
+	encryptor := EncryptorPools.AES.Get().(*AESEncryptor)
+	
+	// 重置/设置密钥
+	if encryptor.key == nil || len(encryptor.key) != len(key) {
+		encryptor.key = make([]byte, len(key))
+	}
 	copy(encryptor.key, key)
 	encryptor.algorithm = AlgorithmAES
 	
@@ -29,7 +33,9 @@ func NewAES(key []byte) (ISymmetric, error) {
 	
 	// 生成随机IV
 	blockSize := aes.BlockSize
-	encryptor.iv = make([]byte, blockSize)
+	if encryptor.iv == nil || len(encryptor.iv) != blockSize {
+		encryptor.iv = make([]byte, blockSize)
+	}
 	if _, err := io.ReadFull(rand.Reader, encryptor.iv); err != nil {
 		return nil, errors.Wrap(err, "生成随机IV失败")
 	}
@@ -44,9 +50,13 @@ func NewDES(key []byte) (ISymmetric, error) {
 		return nil, errors.New("DES密钥长度必须是8字节")
 	}
 	
-	// 创建加密器
-	encryptor := &DESEncryptor{}
-	encryptor.key = make([]byte, len(key))
+	// 从对象池获取实例
+	encryptor := EncryptorPools.DES.Get().(*DESEncryptor)
+	
+	// 重置/设置密钥
+	if encryptor.key == nil || len(encryptor.key) != len(key) {
+		encryptor.key = make([]byte, len(key))
+	}
 	copy(encryptor.key, key)
 	encryptor.algorithm = AlgorithmDES
 	
@@ -57,7 +67,9 @@ func NewDES(key []byte) (ISymmetric, error) {
 	
 	// 生成随机IV
 	blockSize := des.BlockSize
-	encryptor.iv = make([]byte, blockSize)
+	if encryptor.iv == nil || len(encryptor.iv) != blockSize {
+		encryptor.iv = make([]byte, blockSize)
+	}
 	if _, err := io.ReadFull(rand.Reader, encryptor.iv); err != nil {
 		return nil, errors.Wrap(err, "生成随机IV失败")
 	}
@@ -72,9 +84,13 @@ func New3DES(key []byte) (ISymmetric, error) {
 		return nil, errors.New("3DES密钥长度必须是24字节")
 	}
 	
-	// 创建加密器
-	encryptor := &TripleDESEncryptor{}
-	encryptor.key = make([]byte, len(key))
+	// 从对象池获取实例
+	encryptor := EncryptorPools.TripleDES.Get().(*TripleDESEncryptor)
+	
+	// 重置/设置密钥
+	if encryptor.key == nil || len(encryptor.key) != len(key) {
+		encryptor.key = make([]byte, len(key))
+	}
 	copy(encryptor.key, key)
 	encryptor.algorithm = Algorithm3DES
 	
@@ -85,7 +101,9 @@ func New3DES(key []byte) (ISymmetric, error) {
 	
 	// 生成随机IV
 	blockSize := des.BlockSize
-	encryptor.iv = make([]byte, blockSize)
+	if encryptor.iv == nil || len(encryptor.iv) != blockSize {
+		encryptor.iv = make([]byte, blockSize)
+	}
 	if _, err := io.ReadFull(rand.Reader, encryptor.iv); err != nil {
 		return nil, errors.Wrap(err, "生成随机IV失败")
 	}
@@ -95,19 +113,22 @@ func New3DES(key []byte) (ISymmetric, error) {
 
 // NewRSA 创建新的RSA加密器
 func NewRSA() (IAsymmetric, error) {
-	encryptor := &RSAEncryptor{}
-	encryptor.algorithm = AlgorithmRSA
-	encryptor.encoding = Base64Encoding
-	encryptor.keySize = 2048 // 默认密钥大小
+	// 从对象池获取实例
+	encryptor := EncryptorPools.RSA.Get().(*RSAEncryptor)
+	
+	// 重置成默认状态
+	encryptor.Reset()
 	
 	return encryptor, nil
 }
 
 // NewSM2 创建新的SM2加密器
 func NewSM2() (IAsymmetric, error) {
-	encryptor := &SM2Encryptor{}
-	encryptor.algorithm = AlgorithmSM2
-	encryptor.encoding = Base64Encoding
+	// 从对象池获取实例
+	encryptor := EncryptorPools.SM2.Get().(*SM2Encryptor)
+	
+	// 重置成默认状态
+	encryptor.Reset()
 	
 	return encryptor, nil
 }
@@ -119,9 +140,13 @@ func NewSM4(key []byte) (ISymmetric, error) {
 		return nil, errors.New("SM4密钥长度必须是16字节")
 	}
 	
-	// 创建加密器
-	encryptor := &SM4Encryptor{}
-	encryptor.key = make([]byte, len(key))
+	// 从对象池获取实例
+	encryptor := EncryptorPools.SM4.Get().(*SM4Encryptor)
+	
+	// 重置/设置密钥
+	if encryptor.key == nil || len(encryptor.key) != len(key) {
+		encryptor.key = make([]byte, len(key))
+	}
 	copy(encryptor.key, key)
 	encryptor.algorithm = AlgorithmSM4
 	
@@ -129,9 +154,12 @@ func NewSM4(key []byte) (ISymmetric, error) {
 	encryptor.blockMode = ModeCBC // 默认使用CBC模式
 	encryptor.padding = DefaultPKCS7Padding
 	encryptor.encoding = Base64Encoding
+	encryptor.encodingMode = EncodingBase64
 	
 	// 生成随机IV
-	encryptor.iv = make([]byte, 16) // SM4块大小为16字节
+	if encryptor.iv == nil || len(encryptor.iv) != 16 {
+		encryptor.iv = make([]byte, 16) // SM4块大小为16字节
+	}
 	if _, err := io.ReadFull(rand.Reader, encryptor.iv); err != nil {
 		return nil, errors.Wrap(err, "生成随机IV失败")
 	}

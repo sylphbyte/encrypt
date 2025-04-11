@@ -142,11 +142,30 @@ func (s *SM4Encryptor) Encrypt(plaintext []byte) ([]byte, error) {
 		return nil, errors.Wrap(err, "创建SM4块失败")
 	}
 
-	// 根据模式决定是否需要填充
+	// 从对象池获取填充缓冲区
 	var processedText []byte
+	blockSize := block.BlockSize()
+	
 	if s.needsPadding() {
 		// 对明文进行填充
-		processedText, err = s.padding.Pad(plaintext, block.BlockSize())
+		padSize := blockSize - (len(plaintext) % blockSize)
+		if padSize == 0 {
+			padSize = blockSize
+		}
+		
+		// 从对象池获取缓冲区并直接用于填充
+		buf := GetBuffer(len(plaintext) + padSize)
+		
+		// 调用pad方法前先复制原始数据
+		copy(buf, plaintext)
+		
+		// 使用s.padding进行填充操作
+		// 注意：这里假设填充操作会创建新的内存空间
+		processedText, err = s.padding.Pad(plaintext, blockSize)
+		
+		// 无论成功失败都要归还缓冲区
+		PutBuffer(buf)
+		
 		if err != nil {
 			return nil, errors.Wrap(err, "填充数据失败")
 		}
@@ -159,67 +178,148 @@ func (s *SM4Encryptor) Encrypt(plaintext []byte) ([]byte, error) {
 	var encrypted []byte
 	switch s.blockMode {
 	case ModeECB:
-		encrypted = make([]byte, len(processedText))
+		// 从对象池获取加密结果缓冲区
+		resultBuf := GetBuffer(len(processedText))
+		
 		// SM4-ECB模式加密
-		for bs, be := 0, block.BlockSize(); bs < len(processedText); bs, be = bs+block.BlockSize(), be+block.BlockSize() {
-			block.Encrypt(encrypted[bs:be], processedText[bs:be])
+		for bs, be := 0, blockSize; bs < len(processedText); bs, be = bs+blockSize, be+blockSize {
+			block.Encrypt(resultBuf[bs:be], processedText[bs:be])
 		}
+		
+		// 创建结果数组并复制加密数据
+		encrypted = make([]byte, len(processedText))
+		copy(encrypted, resultBuf)
+		
+		// 归还缓冲区
+		PutBuffer(resultBuf)
 
 	case ModeCBC:
 		// 确保IV存在
 		if s.iv == nil {
-			s.iv = make([]byte, block.BlockSize())
-			if _, err := io.ReadFull(rand.Reader, s.iv); err != nil {
+			// 从对象池获取IV缓冲区
+			ivBuf := GetBuffer(blockSize)
+			if _, err := io.ReadFull(rand.Reader, ivBuf); err != nil {
+				PutBuffer(ivBuf) // 出错时归还缓冲区
 				return nil, errors.Wrap(err, "生成随机IV失败")
 			}
+			
+			// 从缓冲区创建新的IV并存储
+			s.iv = make([]byte, blockSize)
+			copy(s.iv, ivBuf)
+			
+			// 归还IV缓冲区
+			PutBuffer(ivBuf)
 		}
 
-		encrypted = make([]byte, len(processedText))
+		// 从对象池获取加密结果缓冲区
+		resultBuf := GetBuffer(len(processedText))
+		
 		// SM4-CBC模式加密
 		mode := cipher.NewCBCEncrypter(block, s.iv)
-		mode.CryptBlocks(encrypted, processedText)
+		mode.CryptBlocks(resultBuf, processedText)
+		
+		// 创建结果数组并复制加密数据
+		encrypted = make([]byte, len(processedText))
+		copy(encrypted, resultBuf)
+		
+		// 归还缓冲区
+		PutBuffer(resultBuf)
 
 	case ModeCFB:
 		// 确保IV存在
 		if s.iv == nil {
-			s.iv = make([]byte, block.BlockSize())
-			if _, err := io.ReadFull(rand.Reader, s.iv); err != nil {
+			// 从对象池获取IV缓冲区
+			ivBuf := GetBuffer(blockSize)
+			if _, err := io.ReadFull(rand.Reader, ivBuf); err != nil {
+				PutBuffer(ivBuf) // 出错时归还缓冲区
 				return nil, errors.Wrap(err, "生成随机IV失败")
 			}
+			
+			// 从缓冲区创建新的IV并存储
+			s.iv = make([]byte, blockSize)
+			copy(s.iv, ivBuf)
+			
+			// 归还IV缓冲区
+			PutBuffer(ivBuf)
 		}
 
-		encrypted = make([]byte, len(processedText))
+		// 从对象池获取加密结果缓冲区
+		resultBuf := GetBuffer(len(processedText))
+		
 		// SM4-CFB模式加密
 		mode := cipher.NewCFBEncrypter(block, s.iv)
-		mode.XORKeyStream(encrypted, processedText)
+		mode.XORKeyStream(resultBuf, processedText)
+		
+		// 创建结果数组并复制加密数据
+		encrypted = make([]byte, len(processedText))
+		copy(encrypted, resultBuf)
+		
+		// 归还缓冲区
+		PutBuffer(resultBuf)
 
 	case ModeOFB:
 		// 确保IV存在
 		if s.iv == nil {
-			s.iv = make([]byte, block.BlockSize())
-			if _, err := io.ReadFull(rand.Reader, s.iv); err != nil {
+			// 从对象池获取IV缓冲区
+			ivBuf := GetBuffer(blockSize)
+			if _, err := io.ReadFull(rand.Reader, ivBuf); err != nil {
+				PutBuffer(ivBuf) // 出错时归还缓冲区
 				return nil, errors.Wrap(err, "生成随机IV失败")
 			}
+			
+			// 从缓冲区创建新的IV并存储
+			s.iv = make([]byte, blockSize)
+			copy(s.iv, ivBuf)
+			
+			// 归还IV缓冲区
+			PutBuffer(ivBuf)
 		}
 
-		encrypted = make([]byte, len(processedText))
+		// 从对象池获取加密结果缓冲区
+		resultBuf := GetBuffer(len(processedText))
+		
 		// SM4-OFB模式加密
 		mode := cipher.NewOFB(block, s.iv)
-		mode.XORKeyStream(encrypted, processedText)
+		mode.XORKeyStream(resultBuf, processedText)
+		
+		// 创建结果数组并复制加密数据
+		encrypted = make([]byte, len(processedText))
+		copy(encrypted, resultBuf)
+		
+		// 归还缓冲区
+		PutBuffer(resultBuf)
 
 	case ModeCTR:
 		// 确保IV存在
 		if s.iv == nil {
-			s.iv = make([]byte, block.BlockSize())
-			if _, err := io.ReadFull(rand.Reader, s.iv); err != nil {
+			// 从对象池获取IV缓冲区
+			ivBuf := GetBuffer(blockSize)
+			if _, err := io.ReadFull(rand.Reader, ivBuf); err != nil {
+				PutBuffer(ivBuf) // 出错时归还缓冲区
 				return nil, errors.Wrap(err, "生成随机IV失败")
 			}
+			
+			// 从缓冲区创建新的IV并存储
+			s.iv = make([]byte, blockSize)
+			copy(s.iv, ivBuf)
+			
+			// 归还IV缓冲区
+			PutBuffer(ivBuf)
 		}
 
-		encrypted = make([]byte, len(processedText))
+		// 从对象池获取加密结果缓冲区
+		resultBuf := GetBuffer(len(processedText))
+		
 		// SM4-CTR模式加密
 		mode := cipher.NewCTR(block, s.iv)
-		mode.XORKeyStream(encrypted, processedText)
+		mode.XORKeyStream(resultBuf, processedText)
+		
+		// 创建结果数组并复制加密数据
+		encrypted = make([]byte, len(processedText))
+		copy(encrypted, resultBuf)
+		
+		// 归还缓冲区
+		PutBuffer(resultBuf)
 
 	case ModeGCM:
 		// GCM模式通常不需要额外填充
@@ -228,14 +328,36 @@ func (s *SM4Encryptor) Encrypt(plaintext []byte) ([]byte, error) {
 			return nil, errors.Wrap(err, "创建GCM模式失败")
 		}
 
-		// 生成随机nonce（与IV类似）
-		nonce := make([]byte, gcm.NonceSize())
-		if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		// 从对象池获取nonce缓冲区
+		nonceSize := gcm.NonceSize()
+		nonceBuf := GetBuffer(nonceSize)
+		if _, err := io.ReadFull(rand.Reader, nonceBuf); err != nil {
+			PutBuffer(nonceBuf) // 出错时归还缓冲区
 			return nil, errors.Wrap(err, "生成GCM nonce失败")
 		}
 
+		// 创建一个新的nonce副本用于长期存储
+		nonce := make([]byte, nonceSize)
+		copy(nonce, nonceBuf)
+		
+		// 从对象池获取加密结果缓冲区 (GCM会在原文基础上加上认证标签)
+		// 通常GCM认证标签是16字节
+		resultBuf := GetBuffer(len(processedText) + 16 + nonceSize)
+		
+		// 复制nonce到结果缓冲区的开头
+		copy(resultBuf, nonce)
+		
 		// 对原始明文进行加密（不是填充后的）
-		encrypted = gcm.Seal(nonce, nonce, processedText, nil)
+		// Seal的dst参数应该正好是nonce之后的位置
+		ciphertext := gcm.Seal(resultBuf[:nonceSize], nonce, processedText, nil)
+		
+		// 创建最终结果数组
+		encrypted = make([]byte, len(ciphertext))
+		copy(encrypted, ciphertext)
+		
+		// 归还缓冲区
+		PutBuffer(nonceBuf)
+		PutBuffer(resultBuf)
 
 	default:
 		return nil, errors.New("不支持的工作模式")
@@ -259,71 +381,131 @@ func (s *SM4Encryptor) Decrypt(ciphertext []byte) ([]byte, error) {
 		return nil, errors.Wrap(err, "创建SM4块失败")
 	}
 
+	// 定义共用的块大小
+	blockSize := block.BlockSize()
+	
 	// 根据不同模式进行解密
 	var decrypted []byte
 	switch s.blockMode {
 	case ModeECB:
-		decrypted = make([]byte, len(decoded))
+		// 从对象池获取解密结果缓冲区
+		resultBuf := GetBuffer(len(decoded))
+		
 		// SM4-ECB模式解密
-		for bs, be := 0, block.BlockSize(); bs < len(decoded); bs, be = bs+block.BlockSize(), be+block.BlockSize() {
-			block.Decrypt(decrypted[bs:be], decoded[bs:be])
+		for bs, be := 0, blockSize; bs < len(decoded); bs, be = bs+blockSize, be+blockSize {
+			block.Decrypt(resultBuf[bs:be], decoded[bs:be])
 		}
 
-		// 移除填充
-		return s.padding.Unpad(decrypted, block.BlockSize())
+		// 移除填充前的临时结果
+		tempResult, err := s.padding.Unpad(resultBuf, blockSize)
+		
+		// 创建最终结果数组
+		decrypted = make([]byte, len(tempResult))
+		copy(decrypted, tempResult)
+		
+		// 归还缓冲区
+		PutBuffer(resultBuf)
+		
+		if err != nil {
+			return nil, errors.Wrap(err, "移除填充失败")
+		}
+		
+		return decrypted, nil
 
 	case ModeCBC:
 		// 检查IV
-		if s.iv == nil || len(s.iv) != block.BlockSize() {
+		if s.iv == nil || len(s.iv) != blockSize {
 			return nil, errors.New("CBC模式需要正确的IV")
 		}
 
-		decrypted = make([]byte, len(decoded))
+		// 从对象池获取解密结果缓冲区
+		resultBuf := GetBuffer(len(decoded))
+		
 		// SM4-CBC模式解密
 		mode := cipher.NewCBCDecrypter(block, s.iv)
-		mode.CryptBlocks(decrypted, decoded)
+		mode.CryptBlocks(resultBuf, decoded)
 
-		// 移除填充
-		return s.padding.Unpad(decrypted, block.BlockSize())
+		// 移除填充前的临时结果
+		tempResult, err := s.padding.Unpad(resultBuf, blockSize)
+		
+		// 创建最终结果数组
+		decrypted = make([]byte, len(tempResult))
+		copy(decrypted, tempResult)
+		
+		// 归还缓冲区
+		PutBuffer(resultBuf)
+		
+		if err != nil {
+			return nil, errors.Wrap(err, "移除填充失败")
+		}
+		
+		return decrypted, nil
 
 	case ModeCFB:
 		// 检查IV
-		if s.iv == nil || len(s.iv) != block.BlockSize() {
+		if s.iv == nil || len(s.iv) != blockSize {
 			return nil, errors.New("CFB模式需要正确的IV")
 		}
 
-		decrypted = make([]byte, len(decoded))
+		// 从对象池获取解密结果缓冲区
+		resultBuf := GetBuffer(len(decoded))
+		
 		// SM4-CFB模式解密
 		mode := cipher.NewCFBDecrypter(block, s.iv)
-		mode.XORKeyStream(decrypted, decoded)
+		mode.XORKeyStream(resultBuf, decoded)
+
+		// 创建最终结果数组
+		decrypted = make([]byte, len(resultBuf))
+		copy(decrypted, resultBuf)
+		
+		// 归还缓冲区
+		PutBuffer(resultBuf)
 
 		// 流模式不需要去除填充
 		return decrypted, nil
 
 	case ModeOFB:
 		// 检查IV
-		if s.iv == nil || len(s.iv) != block.BlockSize() {
+		if s.iv == nil || len(s.iv) != blockSize {
 			return nil, errors.New("OFB模式需要正确的IV")
 		}
 
-		decrypted = make([]byte, len(decoded))
+		// 从对象池获取解密结果缓冲区
+		resultBuf := GetBuffer(len(decoded))
+		
 		// SM4-OFB模式解密
 		mode := cipher.NewOFB(block, s.iv)
-		mode.XORKeyStream(decrypted, decoded)
+		mode.XORKeyStream(resultBuf, decoded)
+
+		// 创建最终结果数组
+		decrypted = make([]byte, len(resultBuf))
+		copy(decrypted, resultBuf)
+		
+		// 归还缓冲区
+		PutBuffer(resultBuf)
 
 		// 流模式不需要去除填充
 		return decrypted, nil
 
 	case ModeCTR:
 		// 检查IV
-		if s.iv == nil || len(s.iv) != block.BlockSize() {
+		if s.iv == nil || len(s.iv) != blockSize {
 			return nil, errors.New("CTR模式需要正确的IV")
 		}
 
-		decrypted = make([]byte, len(decoded))
+		// 从对象池获取解密结果缓冲区
+		resultBuf := GetBuffer(len(decoded))
+		
 		// SM4-CTR模式解密
 		mode := cipher.NewCTR(block, s.iv)
-		mode.XORKeyStream(decrypted, decoded)
+		mode.XORKeyStream(resultBuf, decoded)
+
+		// 创建最终结果数组
+		decrypted = make([]byte, len(resultBuf))
+		copy(decrypted, resultBuf)
+		
+		// 归还缓冲区
+		PutBuffer(resultBuf)
 
 		// 流模式不需要去除填充
 		return decrypted, nil
@@ -338,12 +520,25 @@ func (s *SM4Encryptor) Decrypt(ciphertext []byte) ([]byte, error) {
 		// 提取nonce
 		nonceSize := gcm.NonceSize()
 		if len(decoded) < nonceSize {
-			return nil, errors.New("密文长度小于nance长度")
+			return nil, errors.New("密文长度小于nonce长度")
 		}
 
-		nonce, ciphertext := decoded[:nonceSize], decoded[nonceSize:]
+		// 安全地处理nonce和密文
+		nonce := make([]byte, nonceSize)
+		copy(nonce, decoded[:nonceSize])
+		
+		// 分离ciphertext
+		gcmCiphertext := make([]byte, len(decoded) - nonceSize)
+		copy(gcmCiphertext, decoded[nonceSize:])
+		
+		// GCM模式解密
+		result, err := gcm.Open(nil, nonce, gcmCiphertext, nil)
+		if err != nil {
+			return nil, errors.Wrap(err, "GCM解密失败，可能是数据被篡改")
+		}
+		
 		// GCM模式直接返回解密结果，不需要处理填充
-		return gcm.Open(nil, nonce, ciphertext, nil)
+		return result, nil
 
 	default:
 		return nil, errors.New("不支持的工作模式")

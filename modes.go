@@ -69,13 +69,30 @@ func (c *CBCMode) Encrypt(block cipher.Block, data []byte) ([]byte, error) {
 		return nil, errors.New("IV长度必须等于块大小")
 	}
 	
+	// 从对象池获取加密结果缓冲区
+	encrypted := GetBuffer(len(data))
+	defer PutBuffer(encrypted) // 确保在函数结束前归还缓冲区
+	
 	// 创建加密器
-	encrypted := make([]byte, len(data))
 	encrypter := cipher.NewCBCEncrypter(block, c.iv)
 	encrypter.CryptBlocks(encrypted, data)
 	
+	// 从对象池获取结果缓冲区
+	resultSize := blockSize + len(data)
+	result := GetBuffer(resultSize)
+	
 	// 将IV添加到密文前面
-	return append(c.iv, encrypted...), nil
+	copy(result[:blockSize], c.iv)
+	copy(result[blockSize:], encrypted)
+	
+	// 创建最终结果（必须生成新的切片，因为result会被归还）
+	finalResult := make([]byte, resultSize)
+	copy(finalResult, result)
+	
+	// 归还result缓冲区
+	PutBuffer(result)
+	
+	return finalResult, nil
 }
 
 func (c *CBCMode) Decrypt(block cipher.Block, data []byte) ([]byte, error) {
@@ -86,20 +103,34 @@ func (c *CBCMode) Decrypt(block cipher.Block, data []byte) ([]byte, error) {
 		return nil, errors.New("密文太短，无法提取IV")
 	}
 	
-	iv := data[:blockSize]
+	// 从对象池获取IV缓冲区
+	ivBuf := GetBuffer(blockSize)
+	copy(ivBuf, data[:blockSize])
+	
 	cipherData := data[blockSize:]
 	
 	// 验证密文长度
 	if len(cipherData)%blockSize != 0 {
+		PutBuffer(ivBuf) // 出错时归还缓冲区
 		return nil, errors.New("密文长度不是块大小的整数倍")
 	}
 	
+	// 从对象池获取解密结果缓冲区
+	decrypted := GetBuffer(len(cipherData))
+	
 	// 创建解密器
-	decrypted := make([]byte, len(cipherData))
-	decrypter := cipher.NewCBCDecrypter(block, iv)
+	decrypter := cipher.NewCBCDecrypter(block, ivBuf)
 	decrypter.CryptBlocks(decrypted, cipherData)
 	
-	return decrypted, nil
+	// 创建最终结果（必须生成新的切片，因为decrypted会被归还）
+	finalResult := make([]byte, len(cipherData))
+	copy(finalResult, decrypted)
+	
+	// 归还缓冲区
+	PutBuffer(ivBuf)
+	PutBuffer(decrypted)
+	
+	return finalResult, nil
 }
 
 func (c *CBCMode) NeedsIV() bool {
@@ -116,15 +147,35 @@ type CFBMode struct {
 }
 
 func (c *CFBMode) Encrypt(block cipher.Block, data []byte) ([]byte, error) {
-	if len(c.iv) != block.BlockSize() {
+	blockSize := block.BlockSize()
+	if len(c.iv) != blockSize {
 		return nil, errors.New("IV长度必须等于块大小")
 	}
 	
-	encrypted := make([]byte, len(data))
+	// 从对象池获取加密结果缓冲区
+	encrypted := GetBuffer(len(data))
+	defer PutBuffer(encrypted) // 确保在函数结束前归还缓冲区
+	
+	// 创建加密器
 	stream := cipher.NewCFBEncrypter(block, c.iv)
 	stream.XORKeyStream(encrypted, data)
 	
-	return append(c.iv, encrypted...), nil
+	// 从对象池获取结果缓冲区
+	resultSize := blockSize + len(data)
+	result := GetBuffer(resultSize)
+	
+	// 将IV和加密数据复制到结果缓冲区
+	copy(result[:blockSize], c.iv)
+	copy(result[blockSize:], encrypted)
+	
+	// 创建最终结果（必须生成新的切片，因为result会被归还）
+	finalResult := make([]byte, resultSize)
+	copy(finalResult, result)
+	
+	// 归还result缓冲区
+	PutBuffer(result)
+	
+	return finalResult, nil
 }
 
 func (c *CFBMode) Decrypt(block cipher.Block, data []byte) ([]byte, error) {
@@ -133,14 +184,28 @@ func (c *CFBMode) Decrypt(block cipher.Block, data []byte) ([]byte, error) {
 		return nil, errors.New("密文太短，无法提取IV")
 	}
 	
-	iv := data[:blockSize]
+	// 从对象池获取IV缓冲区
+	ivBuf := GetBuffer(blockSize)
+	copy(ivBuf, data[:blockSize])
+	
 	ciphertext := data[blockSize:]
 	
-	decrypted := make([]byte, len(ciphertext))
-	stream := cipher.NewCFBDecrypter(block, iv)
+	// 从对象池获取解密结果缓冲区
+	decrypted := GetBuffer(len(ciphertext))
+	
+	// 创建解密器
+	stream := cipher.NewCFBDecrypter(block, ivBuf)
 	stream.XORKeyStream(decrypted, ciphertext)
 	
-	return decrypted, nil
+	// 创建最终结果
+	finalResult := make([]byte, len(ciphertext))
+	copy(finalResult, decrypted)
+	
+	// 归还缓冲区
+	PutBuffer(ivBuf)
+	PutBuffer(decrypted)
+	
+	return finalResult, nil
 }
 
 func (c *CFBMode) NeedsIV() bool {
@@ -157,15 +222,35 @@ type OFBMode struct {
 }
 
 func (o *OFBMode) Encrypt(block cipher.Block, data []byte) ([]byte, error) {
-	if len(o.iv) != block.BlockSize() {
+	blockSize := block.BlockSize()
+	if len(o.iv) != blockSize {
 		return nil, errors.New("IV长度必须等于块大小")
 	}
 	
-	encrypted := make([]byte, len(data))
+	// 从对象池获取加密结果缓冲区
+	encrypted := GetBuffer(len(data))
+	defer PutBuffer(encrypted) // 确保在函数结束前归还缓冲区
+	
+	// 创建加密器
 	stream := cipher.NewOFB(block, o.iv)
 	stream.XORKeyStream(encrypted, data)
 	
-	return append(o.iv, encrypted...), nil
+	// 从对象池获取结果缓冲区
+	resultSize := blockSize + len(data)
+	result := GetBuffer(resultSize)
+	
+	// 将IV和加密数据复制到结果缓冲区
+	copy(result[:blockSize], o.iv)
+	copy(result[blockSize:], encrypted)
+	
+	// 创建最终结果（必须生成新的切片，因为result会被归还）
+	finalResult := make([]byte, resultSize)
+	copy(finalResult, result)
+	
+	// 归还result缓冲区
+	PutBuffer(result)
+	
+	return finalResult, nil
 }
 
 func (o *OFBMode) Decrypt(block cipher.Block, data []byte) ([]byte, error) {
@@ -174,14 +259,28 @@ func (o *OFBMode) Decrypt(block cipher.Block, data []byte) ([]byte, error) {
 		return nil, errors.New("密文太短，无法提取IV")
 	}
 	
-	iv := data[:blockSize]
+	// 从对象池获取IV缓冲区
+	ivBuf := GetBuffer(blockSize)
+	copy(ivBuf, data[:blockSize])
+	
 	ciphertext := data[blockSize:]
 	
-	decrypted := make([]byte, len(ciphertext))
-	stream := cipher.NewOFB(block, iv)
+	// 从对象池获取解密结果缓冲区
+	decrypted := GetBuffer(len(ciphertext))
+	
+	// 创建解密器
+	stream := cipher.NewOFB(block, ivBuf)
 	stream.XORKeyStream(decrypted, ciphertext)
 	
-	return decrypted, nil
+	// 创建最终结果
+	finalResult := make([]byte, len(ciphertext))
+	copy(finalResult, decrypted)
+	
+	// 归还缓冲区
+	PutBuffer(ivBuf)
+	PutBuffer(decrypted)
+	
+	return finalResult, nil
 }
 
 func (o *OFBMode) NeedsIV() bool {
@@ -198,15 +297,35 @@ type CTRMode struct {
 }
 
 func (c *CTRMode) Encrypt(block cipher.Block, data []byte) ([]byte, error) {
-	if len(c.iv) != block.BlockSize() {
+	blockSize := block.BlockSize()
+	if len(c.iv) != blockSize {
 		return nil, errors.New("IV长度必须等于块大小")
 	}
 	
-	encrypted := make([]byte, len(data))
+	// 从对象池获取加密结果缓冲区
+	encrypted := GetBuffer(len(data))
+	defer PutBuffer(encrypted) // 确保在函数结束前归还缓冲区
+	
+	// 创建加密器
 	stream := cipher.NewCTR(block, c.iv)
 	stream.XORKeyStream(encrypted, data)
 	
-	return append(c.iv, encrypted...), nil
+	// 从对象池获取结果缓冲区
+	resultSize := blockSize + len(data)
+	result := GetBuffer(resultSize)
+	
+	// 将IV和加密数据复制到结果缓冲区
+	copy(result[:blockSize], c.iv)
+	copy(result[blockSize:], encrypted)
+	
+	// 创建最终结果（必须生成新的切片，因为result会被归还）
+	finalResult := make([]byte, resultSize)
+	copy(finalResult, result)
+	
+	// 归还result缓冲区
+	PutBuffer(result)
+	
+	return finalResult, nil
 }
 
 func (c *CTRMode) Decrypt(block cipher.Block, data []byte) ([]byte, error) {
@@ -215,14 +334,28 @@ func (c *CTRMode) Decrypt(block cipher.Block, data []byte) ([]byte, error) {
 		return nil, errors.New("密文太短，无法提取IV")
 	}
 	
-	iv := data[:blockSize]
+	// 从对象池获取IV缓冲区
+	ivBuf := GetBuffer(blockSize)
+	copy(ivBuf, data[:blockSize])
+	
 	ciphertext := data[blockSize:]
 	
-	decrypted := make([]byte, len(ciphertext))
-	stream := cipher.NewCTR(block, iv)
+	// 从对象池获取解密结果缓冲区
+	decrypted := GetBuffer(len(ciphertext))
+	
+	// 创建解密器
+	stream := cipher.NewCTR(block, ivBuf)
 	stream.XORKeyStream(decrypted, ciphertext)
 	
-	return decrypted, nil
+	// 创建最终结果
+	finalResult := make([]byte, len(ciphertext))
+	copy(finalResult, decrypted)
+	
+	// 归还缓冲区
+	PutBuffer(ivBuf)
+	PutBuffer(decrypted)
+	
+	return finalResult, nil
 }
 
 func (c *CTRMode) NeedsIV() bool {
@@ -244,15 +377,40 @@ func (g *GCMMode) Encrypt(block cipher.Block, data []byte) ([]byte, error) {
 		return nil, errors.Wrap(err, "创建GCM模式失败")
 	}
 	
-	// 生成随机nonce
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+	// 从对象池获取nonce缓冲区
+	nonceSize := gcm.NonceSize()
+	nonceBuf := GetBuffer(nonceSize)
+	if _, err := io.ReadFull(rand.Reader, nonceBuf); err != nil {
+		PutBuffer(nonceBuf) // 出错时释放缓冲区
 		return nil, errors.Wrap(err, "生成随机nonce失败")
 	}
-	g.nonce = nonce
 	
-	// GCM加密
-	return gcm.Seal(nonce, nonce, data, nil), nil
+	// 创建一个永久副本
+	g.nonce = make([]byte, nonceSize)
+	copy(g.nonce, nonceBuf)
+
+	// 从对象池获取结果缓冲区（GCM的Seal方法可以原地加密）
+	// 预留足够空间给认证标签 (通常是16字节)
+	resultSize := nonceSize + len(data) + 16
+	result := GetBuffer(resultSize)
+	
+	// 先复制nonce到缓冲区开头
+	copy(result[:nonceSize], nonceBuf)
+	
+	// 使用Seal方法进行原地加密，直接进入了result缓冲区
+	ciphertext := gcm.Seal(result[:nonceSize], nonceBuf, data, nil)
+	
+	// 释放nonce缓冲区
+	PutBuffer(nonceBuf)
+	
+	// 创建最终结果
+	finalResult := make([]byte, len(ciphertext))
+	copy(finalResult, ciphertext)
+	
+	// 释放结果缓冲区
+	PutBuffer(result)
+	
+	return finalResult, nil
 }
 
 func (g *GCMMode) Decrypt(block cipher.Block, data []byte) ([]byte, error) {
@@ -266,8 +424,35 @@ func (g *GCMMode) Decrypt(block cipher.Block, data []byte) ([]byte, error) {
 		return nil, errors.New("密文太短，无法提取nonce")
 	}
 	
-	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
-	return gcm.Open(nil, nonce, ciphertext, nil)
+	// 从对象池获取nonce缓冲区
+	nonceBuf := GetBuffer(nonceSize)
+	copy(nonceBuf, data[:nonceSize])
+	
+	// 分离ciphertext
+	ciphertext := data[nonceSize:]
+	
+	// 从对象池获取结果缓冲区
+	// GCM解密后大小会比原始密文小16字节(认证标签)
+	resultBuf := GetBuffer(len(ciphertext) - 16)
+	
+	// 解密并进行完整性验证
+	plaintext, err := gcm.Open(resultBuf[:0], nonceBuf, ciphertext, nil)
+	if err != nil {
+		// 出错时释放缓冲区
+		PutBuffer(nonceBuf)
+		PutBuffer(resultBuf)
+		return nil, errors.Wrap(err, "GCM解密失败，可能是数据被篡改")
+	}
+	
+	// 创建最终结果
+	finalResult := make([]byte, len(plaintext))
+	copy(finalResult, plaintext)
+	
+	// 释放缓冲区
+	PutBuffer(nonceBuf)
+	PutBuffer(resultBuf)
+	
+	return finalResult, nil
 }
 
 func (g *GCMMode) NeedsIV() bool {
