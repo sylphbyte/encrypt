@@ -17,7 +17,7 @@ func (a *AESEncryptor) ECB() ISymmetric {
 func (a *AESEncryptor) CBC() ISymmetric {
 	// 创建块加密模式
 	a.blockMode = NewCBCMode(a.iv)
-	
+
 	// 创建加密块以获取块大小
 	block, err := aes.NewCipher(a.key)
 	if err == nil {
@@ -31,7 +31,7 @@ func (a *AESEncryptor) CBC() ISymmetric {
 func (a *AESEncryptor) CFB() ISymmetric {
 	// 创建块加密模式
 	a.blockMode = NewCFBMode(a.iv)
-	
+
 	// 创建加密块以获取块大小
 	block, err := aes.NewCipher(a.key)
 	if err == nil {
@@ -45,7 +45,7 @@ func (a *AESEncryptor) CFB() ISymmetric {
 func (a *AESEncryptor) OFB() ISymmetric {
 	// 创建块加密模式
 	a.blockMode = NewOFBMode(a.iv)
-	
+
 	// 创建加密块以获取块大小
 	block, err := aes.NewCipher(a.key)
 	if err == nil {
@@ -59,7 +59,7 @@ func (a *AESEncryptor) OFB() ISymmetric {
 func (a *AESEncryptor) CTR() ISymmetric {
 	// 创建块加密模式
 	a.blockMode = NewCTRMode(a.iv)
-	
+
 	// 创建加密块以获取块大小
 	block, err := aes.NewCipher(a.key)
 	if err == nil {
@@ -125,12 +125,16 @@ func (a *AESEncryptor) WithIV(iv []byte) ISymmetric {
 		switch mode := a.blockMode.(type) {
 		case *CBCMode:
 			mode.iv = iv
+			mode.keepIVSeparate = true // 设置标志，表示IV是手动设置的，不需要添加到密文中
 		case *CFBMode:
 			mode.iv = iv
+			mode.keepIVSeparate = true // 设置标志，表示IV是手动设置的，不需要添加到密文中
 		case *OFBMode:
 			mode.iv = iv
+			mode.keepIVSeparate = true // 设置标志，表示IV是手动设置的，不需要添加到密文中
 		case *CTRMode:
 			mode.iv = iv
+			mode.keepIVSeparate = true // 设置标志，表示IV是手动设置的，不需要添加到密文中
 		}
 	}
 	return a
@@ -141,7 +145,7 @@ func (a *AESEncryptor) GetIV() []byte {
 	if a.iv == nil {
 		return nil
 	}
-	
+
 	ivCopy := make([]byte, len(a.iv))
 	copy(ivCopy, a.iv)
 	return ivCopy
@@ -171,7 +175,7 @@ func (d *DESEncryptor) ECB() ISymmetric {
 func (d *DESEncryptor) CBC() ISymmetric {
 	// 创建块加密模式
 	d.blockMode = NewCBCMode(d.iv)
-	
+
 	// 创建加密块以获取块大小
 	block, err := des.NewCipher(d.key)
 	if err == nil {
@@ -185,7 +189,7 @@ func (d *DESEncryptor) CBC() ISymmetric {
 func (d *DESEncryptor) CFB() ISymmetric {
 	// 创建块加密模式
 	d.blockMode = NewCFBMode(d.iv)
-	
+
 	// 创建加密块以获取块大小
 	block, err := des.NewCipher(d.key)
 	if err == nil {
@@ -199,7 +203,7 @@ func (d *DESEncryptor) CFB() ISymmetric {
 func (d *DESEncryptor) OFB() ISymmetric {
 	// 创建块加密模式
 	d.blockMode = NewOFBMode(d.iv)
-	
+
 	// 创建加密块以获取块大小
 	block, err := des.NewCipher(d.key)
 	if err == nil {
@@ -213,7 +217,7 @@ func (d *DESEncryptor) OFB() ISymmetric {
 func (d *DESEncryptor) CTR() ISymmetric {
 	// 创建块加密模式
 	d.blockMode = NewCTRMode(d.iv)
-	
+
 	// 创建加密块以获取块大小
 	block, err := des.NewCipher(d.key)
 	if err == nil {
@@ -279,12 +283,16 @@ func (d *DESEncryptor) WithIV(iv []byte) ISymmetric {
 		switch mode := d.blockMode.(type) {
 		case *CBCMode:
 			mode.iv = iv
+			mode.keepIVSeparate = true // 设置标志，表示IV是手动设置的，不需要添加到密文中
 		case *CFBMode:
 			mode.iv = iv
+			mode.keepIVSeparate = true // 设置标志，表示IV是手动设置的，不需要添加到密文中
 		case *OFBMode:
 			mode.iv = iv
+			mode.keepIVSeparate = true // 设置标志，表示IV是手动设置的，不需要添加到密文中
 		case *CTRMode:
 			mode.iv = iv
+			mode.keepIVSeparate = true // 设置标志，表示IV是手动设置的，不需要添加到密文中
 		}
 	}
 	return d
@@ -295,7 +303,7 @@ func (d *DESEncryptor) GetIV() []byte {
 	if d.iv == nil {
 		return nil
 	}
-	
+
 	ivCopy := make([]byte, len(d.iv))
 	copy(ivCopy, d.iv)
 	return ivCopy
